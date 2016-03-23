@@ -16,6 +16,9 @@
 #include <SD.h>
 #include <SPI.h>
 
+//Relay PINs
+#define lights 7
+
 ///Inicializaciones
 DHT dht(DHTPIN, DHTTYPE);
 BH1750 lightMeter;
@@ -37,10 +40,11 @@ int cantidadLecturasValidas = 0;
 float luzAcumulada = 0;
 float promedioLuz = 0;
 int lcdOn = -1;
+int lightsStatus = 0;
 
 int luzArray[5] = {-1, -1, -1, -1, -1};
 int luzArrayIndex = 0;
-int qDatosLuzArray = 0;
+int qDatosArrays = 0;
 int zLuzArray = 0;
 float promedioLuzArray = 0;
 
@@ -65,24 +69,19 @@ void setup() {
 
   //Abrimos archivos para escribir resultados
   myFile = SD.open("datosHuerta.txt", FILE_WRITE);
-  if(myFile){
-    Serial.print("Writing to test.txt...");
-  }
-  else{
-    Serial.println("Se cago la papa");
-  }
+  
+//Arrancamos siempre con el relay1 apagado
+  pinMode(lights, OUTPUT);
+  delay(1000);
+  digitalWrite(lights, HIGH);
+  lightsStatus = 0;
 
 }
 
 void loop() {
 
-  delay(1000); //intervalo de lectura
-/*
-  if(cantidadLecturas % 10 == 0){
-    lcd.on();
-    lcdOn = 1;
-  }
-*/
+  delay(5000); //intervalo de lectura
+
   lcd.clear();
   h = dht.readHumidity();
   t = dht.readTemperature();
@@ -103,7 +102,7 @@ void loop() {
   else {
     luzArray[luzArrayIndex] = l;
   }
-  qDatosLuzArray++;
+  qDatosArrays++;
   zLuzArray = 0;
     if(luzArrayIndex > 4){
     luzArrayIndex = 0;
@@ -116,10 +115,10 @@ void loop() {
     zLuzArray = zLuzArray + luzArray[i];
   }
   
-  promedioLuzArray = zLuzArray / ((qDatosLuzArray < 6) ? qDatosLuzArray : 5);
+  promedioLuzArray = zLuzArray / ((qDatosArrays < 6) ? qDatosArrays : 5);
+   
 
-
-  //Evaluamos 
+  //Si es de noche no hacemos nada
   if(promedioLuzArray < 10){
     cantidadLecturasValidas = 0;
     luzAcumulada = 0;
@@ -133,44 +132,71 @@ void loop() {
     luzAcumulada = luzAcumulada + l;
     promedioLuz = luzAcumulada / cantidadLecturasValidas;
  
-    //Iniciar logica de acciones con datos acumulados
-    //Serial.println(lux);
-    lcd.print("H:");
-    lcd.print(h);
-    lcd.setCursor(9,0);
-    lcd.print("Q:");
-    lcd.print(cantidadLecturasValidas);
-    lcd.setCursor(0,1);
-    //lcd.print("T:");
-    //lcd.print(t);
-    lcd.print(promedioLuzArray);
-    lcd.setCursor(9,1);
-    //lcd.print(lux);
-    lcd.print(l);
+    printDisplay(h, cantidadLecturasValidas, promedioLuzArray, promedioLuz);
+    escribirSD(lectura);
 
-    //Escribir tarjeta SD
-    if(cantidadEscrituras < 10000){
-      //escribir el archivo
-      myFile.println(lectura);
-      cantidadEscrituras++;
+
+    if(promedioLuz < 100 && lightsStatus == 1){
+      Serial.println("Mantenemos prendidas las luces.");
+    }
+    else if(promedioLuz < 100 && lightsStatus == 0){
+      switchLights(1);
     }
     else {
-       myFile.close();
-       Serial.println("archivo cerrado. Se cocio la papa");
+      switchLights(0);
     }
-
-/*
-    if(lcdOn = 1){
-      delay(10000); //delay para poder leer    
-      lcd.off();
-      lcdOn = -1;
-    }
-*/  
-  
+ 
   }
 
   
  
  } //fin loop
+
+ void switchLights(int _click){
+    if(_click == 1) {
+      digitalWrite(lights, LOW); 
+      lightsStatus = 1;
+      Serial.println("Prendemos luces");
+    }
+    else {
+      digitalWrite(lights, HIGH);
+      lightsStatus = 0;
+      Serial.println("Apagamos luces");
+    }
+  
+ }
+
+ void escribirSD(String lectura){
+    if(cantidadEscrituras < 10000){
+      //escribir el archivo
+      myFile.println(lectura);
+      cantidadEscrituras++;
+      Serial.println("Escritura sobre archivo.");
+    }
+    else {
+       myFile.close();
+       Serial.println("Archivo cerrado por exceso en cantidad de escrituras.");
+    }
+ }
+ 
+ void printDisplay(int _humedad, int _cantidadLecturasValidas, int _promedioLuzArray, int _promedioLuz){
+
+    lcd.print("H:");
+    lcd.print(_humedad);
+    lcd.setCursor(9,0);
+    lcd.print("Q:");
+    lcd.print(_cantidadLecturasValidas);
+    lcd.setCursor(0,1);
+    //lcd.print("T:");
+    //lcd.print(t);
+    lcd.print("X:");
+    lcd.print(_promedioLuzArray);
+    lcd.setCursor(9,1);
+    //lcd.print(lux);
+    lcd.print("M:");
+    lcd.print(_promedioLuz);
+
+ }
+
 
 
