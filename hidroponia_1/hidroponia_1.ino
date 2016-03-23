@@ -31,20 +31,18 @@ float l = 0.0;
 float ht = 0.0;
 String lectura = "";
 //humedad, temperatura, luz y humedadTierra
-float sensoresOnline[6][4]; //un registro cada 10 segundos
-float sensoresMinuto[60][4]; //un registro por minuto
-int hora = 0;
-//Datos diarios
-float luzAcumuladaDia = 0.0;
-//Datos ultima hora
-float humedadPromedio = 0.0; 
-float temperaturaPromedio = 0.0; 
-float humedadTierraPromedio = 0.0; 
-int nroFilaOnline;
 int nroFilaMinuto;
 int cantidadLecturas = 0;
+int cantidadLecturasValidas = 0;
 float luzAcumulada = 0;
 float promedioLuz = 0;
+int lcdOn = -1;
+
+int luzArray[5] = {-1, -1, -1, -1, -1};
+int luzArrayIndex = 0;
+int qDatosLuzArray = 0;
+int zLuzArray = 0;
+float promedioLuzArray = 0;
 
 void setup() {
   Serial.begin(9600);
@@ -78,41 +76,100 @@ void setup() {
 
 void loop() {
 
-  delay(10000); //leemos cada 10 segundos
+  delay(1000); //intervalo de lectura
+/*
+  if(cantidadLecturas % 10 == 0){
+    lcd.on();
+    lcdOn = 1;
+  }
+*/
   lcd.clear();
   h = dht.readHumidity();
   t = dht.readTemperature();
   l = lightMeter.readLightLevel();
   ht = 0;
   lectura = String(h)+", "+String(t)+", "+String(l)+", "+String(ht); //generamos string para grabar en SD card
-
+  
   //Defino la cantidad de lecturas realizadas
   cantidadLecturas++;
 
-  //Leemos las variables cada 10 segundos
-
-  if(l < 100){
-    cantidadLecturas = 0;
-    luzAcumulada = 0;
-    promedioLuz = 0;
+  //Si nos pasamos de la cantidad de valores que puede contener el array, empujamos todo hacia atras y descartamos el primer valor.
+  if(luzArrayIndex > 4){
+    for(int i = 0; i < 4; i++){
+      luzArray[i] = luzArray[i+1];
+    }
+    luzArray[5] = l;
   }
   else {
-    cantidadLecturas++;
-    luzAcumulada = luzAcumulada + l;
-    promedioLuz = luzAcumulada / cantidadLecturas;
- 
-  //Iniciar logica de acciones con datos acumulados
-  //Serial.println(lux);
-  lcd.print("H:");
-  lcd.print(h);
-  lcd.setCursor(0,1);
-  lcd.print("T:");
-  lcd.print(t);
-  lcd.setCursor(9,1);
-  //lcd.print(lux);
-  lcd.print(promedioLuz);
-  delay(60000); //un minuto
+    luzArray[luzArrayIndex] = l;
   }
+  qDatosLuzArray++;
+  zLuzArray = 0;
+    if(luzArrayIndex > 4){
+    luzArrayIndex = 0;
+  }
+  else {
+    luzArrayIndex++;
+  }
+  
+  for(int i = 0; i < 5; i++){
+    zLuzArray = zLuzArray + luzArray[i];
+  }
+  
+  promedioLuzArray = zLuzArray / ((qDatosLuzArray < 6) ? qDatosLuzArray : 5);
+
+
+  //Evaluamos 
+  if(promedioLuzArray < 10){
+    cantidadLecturasValidas = 0;
+    luzAcumulada = 0;
+    promedioLuz = 0;
+    lcd.print("Lecturas nocturas.");
+    lcd.setCursor(0,1);
+    lcd.print(promedioLuz);
+  }
+  else {
+    cantidadLecturasValidas++;
+    luzAcumulada = luzAcumulada + l;
+    promedioLuz = luzAcumulada / cantidadLecturasValidas;
+ 
+    //Iniciar logica de acciones con datos acumulados
+    //Serial.println(lux);
+    lcd.print("H:");
+    lcd.print(h);
+    lcd.setCursor(9,0);
+    lcd.print("Q:");
+    lcd.print(cantidadLecturasValidas);
+    lcd.setCursor(0,1);
+    //lcd.print("T:");
+    //lcd.print(t);
+    lcd.print(promedioLuzArray);
+    lcd.setCursor(9,1);
+    //lcd.print(lux);
+    lcd.print(l);
+
+    //Escribir tarjeta SD
+    if(cantidadEscrituras < 10000){
+      //escribir el archivo
+      myFile.println(lectura);
+      cantidadEscrituras++;
+    }
+    else {
+       myFile.close();
+       Serial.println("archivo cerrado. Se cocio la papa");
+    }
+
+/*
+    if(lcdOn = 1){
+      delay(10000); //delay para poder leer    
+      lcd.off();
+      lcdOn = -1;
+    }
+*/  
+  
+  }
+
+  
  
  } //fin loop
 
