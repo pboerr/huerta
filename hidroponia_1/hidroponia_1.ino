@@ -18,6 +18,7 @@
 
 //Relay PINs
 #define lights 7
+#define pump 8
 
 ///Inicializaciones
 DHT dht(DHTPIN, DHTTYPE);
@@ -41,12 +42,14 @@ float luzAcumulada = 0;
 float promedioLuz = 0;
 int lcdOn = -1;
 int lightsStatus = 0;
+int pumpStatus = 0;
 
 int luzArray[5] = {-1, -1, -1, -1, -1};
 int luzArrayIndex = 0;
 int qDatosArrays = 0;
 int zLuzArray = 0;
 float promedioLuzArray = 0;
+float pumpStatusMin = 0;
 
 void setup() {
   Serial.begin(9600);
@@ -70,11 +73,16 @@ void setup() {
   //Abrimos archivos para escribir resultados
   myFile = SD.open("datosHuerta.txt", FILE_WRITE);
   
-//Arrancamos siempre con el relay1 apagado
+//Arrancamos siempre con los relays apagados
   pinMode(lights, OUTPUT);
   delay(1000);
   digitalWrite(lights, HIGH);
   lightsStatus = 0;
+
+  pinMode(pump, OUTPUT);
+  delay(1000);
+  digitalWrite(pump, HIGH);
+  pumpStatus = 0;
 
 }
 
@@ -123,6 +131,9 @@ void loop() {
     cantidadLecturasValidas = 0;
     luzAcumulada = 0;
     promedioLuz = 0;
+    if(lightsStatus == 1){
+      switchLights(0);
+    }
     lcd.print("Lecturas nocturas.");
     lcd.setCursor(0,1);
     lcd.print(promedioLuz);
@@ -148,6 +159,16 @@ void loop() {
  
   }
 
+  //evaluamos la bomba
+  pumpStatusMin = pumpStatusMin + 0.05;
+  if(pumpStatus == 1 && pumpStatusMin >= 5){
+    switchPump(0);
+  }
+  else {
+    switchPump(1);
+  }
+  
+
   
  
  } //fin loop
@@ -164,6 +185,19 @@ void loop() {
       Serial.println("Apagamos luces");
     }
   
+ }
+
+ void switchPump(int _click){
+  if(_click == 1){
+    digitalWrite(pump, LOW);
+    pumpStatus = 1;
+    Serial.println("Prendemos bomba");
+  }
+  else {
+    digitalWrite(pump, HIGH);
+    pumpStatus = 0;
+    Serial.println("Apagamos bomba");
+  }
  }
 
  void escribirSD(String lectura){
