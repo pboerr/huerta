@@ -43,6 +43,9 @@ float promedioLuz = 0;
 int lcdOn = -1;
 int lightsStatus = 0;
 int pumpStatus = 0;
+int lcdStatus = 0;
+float lcdMin = 0;
+
 
 int luzArray[5] = {-1, -1, -1, -1, -1};
 int luzArrayIndex = 0;
@@ -67,7 +70,7 @@ void setup() {
   dht.begin();
   lightMeter.begin();
   lcd.begin(16,2); 
-  lcd.backlight();
+  lcd.noBacklight();
   lcd.setCursor(0,0);
 
   //Abrimos archivos para escribir resultados
@@ -124,7 +127,21 @@ void loop() {
   }
   
   promedioLuzArray = zLuzArray / ((qDatosArrays < 6) ? qDatosArrays : 5);
-   
+
+  //Manejamos la luz del lcd usando el sensor de luz como interruptor  
+  lcdMin = lcdMin + 0.05;
+  //Si se da una variacion de luz significativa encendemos el visor
+  if(abs(luzArray[4] - luzArray[3]) > 500){
+    if(lcdStatus == 0){
+      switchLcd(1);
+    }    
+  } 
+  //Si esta prendido hace mas de 1 min, entonces lo apagamos
+  if(lcdStatus == 1 && lcdMin > 1){
+    switchLcd(0);
+  }
+  
+  
 
   //Si es de noche no hacemos nada
   if(promedioLuzArray < 10){
@@ -161,10 +178,10 @@ void loop() {
 
   //evaluamos la bomba
   pumpStatusMin = pumpStatusMin + 0.05;
-  if(pumpStatus == 1 && pumpStatusMin >= 5){
+  if(pumpStatus == 1 && pumpStatusMin >= 1){
     switchPump(0);
   }
-  else {
+  else if(pumpStatus == 0 && pumpStatusMin >= 1) {
     switchPump(1);
   }
   
@@ -173,6 +190,18 @@ void loop() {
  
  } //fin loop
 
+ void switchLcd(int _click){
+    if(_click == 0){
+      lcd.noBacklight(); 
+      lcdStatus = 0;
+      lcdMin = 0;
+    }
+    else{
+      lcd.backlight();
+      lcdStatus = 1;
+      lcdMin = 0;
+    }
+}
  void switchLights(int _click){
     if(_click == 1) {
       digitalWrite(lights, LOW); 
@@ -186,20 +215,20 @@ void loop() {
     }
   
  }
-
  void switchPump(int _click){
   if(_click == 1){
     digitalWrite(pump, LOW);
     pumpStatus = 1;
+    pumpStatusMin = 0;
     Serial.println("Prendemos bomba");
   }
   else {
     digitalWrite(pump, HIGH);
     pumpStatus = 0;
+    pumpStatusMin = 0;
     Serial.println("Apagamos bomba");
   }
  }
-
  void escribirSD(String lectura){
     if(cantidadEscrituras < 10000){
       //escribir el archivo
@@ -212,7 +241,6 @@ void loop() {
        Serial.println("Archivo cerrado por exceso en cantidad de escrituras.");
     }
  }
- 
  void printDisplay(int _humedad, int _cantidadLecturasValidas, int _promedioLuzArray, int _promedioLuz){
 
     lcd.print("H:");
